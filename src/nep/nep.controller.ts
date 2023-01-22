@@ -1,15 +1,13 @@
-import { Body, Controller, Get } from '@nestjs/common';
-import { NepDto } from './dto';
-import { NepService } from './nep.service';
+import { Body, Controller, Get } from '@nestjs/common'
+import { NepDto } from './dto'
+import { NepService } from './nep.service'
 
 @Controller('nep')
 export class NepController {
-    constructor(private nepService: NepService) { }
+  constructor(private nepService: NepService) {}
 
-    @Get('processCode')
-    processCode(@Body() nepDto: NepDto) {
-        const code = nepDto.code
-        return this.nepService.processCode(code, 0)
-    }
-
+  @Get('getTemperature')
+  processCode(@Body() nepDto: NepDto) {
+    return this.nepService.processCode(nepDto.message, 0)
+  }
 }

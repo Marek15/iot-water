@@ -1,7 +1,7 @@
-import { IsNotEmpty, IsString } from "class-validator"
+import { IsNotEmpty, IsHexadecimal } from 'class-validator'
 
 export class NepDto {
-    @IsString()
-    @IsNotEmpty()
-    code: string
+  @IsHexadecimal()
+  @IsNotEmpty()
+  message: string
 }
