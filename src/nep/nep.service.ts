@@ -1,80 +1,71 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotAcceptableException } from '@nestjs/common'
+import { Nep } from './interfaces/nep.interface'
 
 @Injectable()
 export class NepService {
-  processCode(message: string, index: number) {
-    if (message.length == index) {
-      return null
-    }
-    const { isTemperature, ind } = this.getOID(message, index)
-    index = ind
+  getTemperature(nep: Nep) {
+    if (nep.message.length <= nep.pointer)
+      throw new NotAcceptableException('Message not contains temperature')
 
-    const { type, length, inde } = this.getTypeAndLength(message, index)
-    index = inde
+    const isTemperature = this.getOID(nep) === 105
+    const { type, len } = this.getTypeAndLength(nep)
 
-    if (!isTemperature) {
-      index += length * 2
-    } else {
-      return this.getValue(message, index, type, length)
-    }
+    // increase pointer to end of value
+    nep.pointer += len * 2
+    if (nep.message.length < nep.pointer)
+      throw new NotAcceptableException('Message have not correct data')
+    if (isTemperature) 
+      return this.getValue(nep, type, len) / 10
 
-    return this.processCode(message, index)
+    return this.getTemperature(nep)
   }
 
-  getOID(code: string, ind: number) {
-    ind += 2
-    const firstByte = this.hex2bin(code.slice(ind - 2, ind))
-    let secondByte = ''
-    if (firstByte.charAt(0) === '1') {
-      ind += 2
-      secondByte = this.hex2bin(code.slice(ind - 2, ind))
-    }
-    const oid = parseInt(firstByte.slice(2) + secondByte, 2)
+  getOID(nep: Nep): number {
+    const secondBit = this.hex2bin(nep.message.slice(nep.pointer, nep.pointer + 2)).charAt(1)
 
-    if (firstByte.charAt(1) === '1') {
-      ind = this.getIndex(code, ind)
-    }
-    const isTemperature = oid === 105
-    return { isTemperature, ind }
+    const oid = this.getOidAndIndexBytes(nep, 2)
+
+    if (secondBit === '1') 
+      this.getIndex(nep)
+    return oid
   }
 
-  getIndex(code, index) {
-    index += 2
-    const firstByte = this.hex2bin(code.slice(index - 2, index))
-    if (firstByte.charAt(0) === '1') {
-      index += 2
-    }
-    return index
+  getIndex(nep: Nep): number {
+    return this.getOidAndIndexBytes(nep, 1)
   }
 
-  getTypeAndLength(code: string, inde: number) {
-    inde += 2
-    const firstByte = this.hex2bin(code.slice(inde - 2, inde))
-    let type, length
+  getOidAndIndexBytes(nep: Nep, startSlice: number): number {
+    const firstByte = this.getBinaryByte(nep)
+    const secondByte =
+      firstByte.charAt(0) === '1' ? this.getBinaryByte(nep) : ''
+
+    return parseInt(firstByte.slice(startSlice) + secondByte, 2)
+  }
+
+  getTypeAndLength(nep: Nep) {
+    const firstByte = this.getBinaryByte(nep)
+    let type: number, len: number
     if (firstByte.charAt(0) === '0') {
       type = parseInt(firstByte.slice(1, 4), 2)
-
-      length = parseInt(firstByte.slice(4, 8), 2)
+      len = parseInt(firstByte.slice(4, 8), 2)
     } else {
-      inde += 2
-      const secondByte = this.hex2bin(code.slice(inde - 2, inde))
-
+      const secondByte = this.getBinaryByte(nep)
       type = parseInt(firstByte.slice(1), 2)
 
       if (secondByte.charAt(0) === '0') {
-        length = parseInt(secondByte.slice(1), 2)
+        len = parseInt(secondByte.slice(1), 2)
       } else {
-        inde += 2
-        const thirdByte = this.hex2bin(code.slice(inde - 2, inde))
-        length = parseInt(secondByte.slice(1) + thirdByte, 2)
+        const thirdByte = this.getBinaryByte(nep)
+        len = parseInt(secondByte.slice(1) + thirdByte, 2)
       }
     }
-    return { type, length, inde }
+    return { type, len }
   }
 
-  getValue(code: string, index: number, type: number, length: number) {
-    index += length * 2
-    const value = this.hex2bin(code.slice(index - length * 2, index))
+  getValue(nep: Nep, type: number, len: number) {
+    const value = this.hex2bin(
+      nep.message.slice(nep.pointer - len * 2, nep.pointer)
+    )
 
     return this.getValueByType(value, type)
   }
@@ -90,12 +81,17 @@ export class NepService {
     }
   }
 
-  parseInt2complement(bitstring) {
-    let value = parseInt(bitstring, 2)
-    const length = bitstring.length
+  getBinaryByte(nep: Nep): string {
+    nep.pointer += 2
+    return this.hex2bin(nep.message.slice(nep.pointer - 2, nep.pointer))
+  }
 
-    if ((value & (1 << (length - 1))) > 0) {
-      value -= 1 << length
+  parseInt2complement(bitstring: string): number {
+    let value = parseInt(bitstring, 2)
+    const bitlength = bitstring.length
+
+    if ((value & (1 << (bitlength - 1))) > 0) {
+      value -= 1 << bitlength
     }
     return value
   }

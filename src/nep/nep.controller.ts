@@ -7,7 +7,10 @@ export class NepController {
   constructor(private nepService: NepService) {}
 
   @Get('getTemperature')
-  processCode(@Body() nepDto: NepDto) {
-    return this.nepService.processCode(nepDto.message, 0)
+  getTemperature(@Body() nepDto: NepDto) {
+    return this.nepService.getTemperature({
+      message: nepDto.message,
+      pointer: 0
+    })
   }
 }
